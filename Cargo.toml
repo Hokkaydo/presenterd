@@ -1,0 +1,30 @@
+[package]
+name = "presenterd"
+version = "0.1.0"
+edition = "2024"
+authors = ["Hokkaydo"]
+
+[dependencies]
+tokio = { version = "1.45.0", features = ["full"] }
+bluer = {version = "0.17.3", features = ["full"] }
+futures = "0.3.31"
+env_logger = "0.11"
+uuid = "1.16.0"
+log = "0.4"
+
+# metada for deb
+[package.metadata.deb]
+name = "presenterd"
+version = "0.1.0"
+maintainer = "Hokkaydo"
+description = "A Bluetooth Presenter daemon for Linux"
+section = "utils"
+priority = "optional"
+
+# metadata for rpm
+[package.metadata.rpm]
+name = "presenterd"
+version = "0.1.0"
+summary = "A Bluetooth Presenter daemon for Linux"
+license = "MIT"     
+group = "Applications/Utilities"
