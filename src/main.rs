@@ -16,26 +16,7 @@ use tokio::{
     time::sleep,
 };
 use log::{debug, error, trace};
-
-/// Define the commands that can be sent from the Bluetooth device.
-#[derive(Debug)]
-enum Command {
-    Down,
-    Up,
-    Unknown,
-}
-
-
-impl Command {
-    /// Convert the command to a keycode that ydotool can understand.
-    fn to_keycode(&self) -> i32 {
-        match self {
-            Command::Down => 105, // Left arrow
-            Command::Up => 106,   // Right arrow
-            Command::Unknown => -1,
-        }
-    }
-}
+use enigo::{Enigo, Key, Keyboard, Settings};
 
 /// UUIDs for the GATT service
 const SERVICE_UUID: uuid::Uuid = uuid::Uuid::from_u128(0x1234567812345678123456789abcdef0);
@@ -45,55 +26,30 @@ const CHARACTERISTIC_UUID: uuid::Uuid = uuid::Uuid::from_u128(0x1234567812345678
 /// Name of the GATT service.
 const NAME : &str = "Presenter Remote";
 
-/// Ensure that ydotool is installed and available in the system path.
-#[cfg(target_os = "linux")]
-#[inline(always)]
-fn require_ydotool() {
-    if !std::process::Command::new("which")
-        .arg("ydotool")
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
-    {
-        panic!("\x1b[31mWarning: ydotool is required for this application to work.\x1b[0m");
-    } 
-}
-
-#[cfg(not(target_os = "linux"))]
-#[inline(always)]
-fn require_ydotool() {
-    panic!("\x1b[31mError: This application is currently only supported on Linux with ydotool installed.\x1b[0m");
-}
-
 /// Handle the command received from the Bluetooth device.
-/// This function interprets the command and executes the corresponding action using ydotool.
+/// This function interprets the command and executes the corresponding action
 ///
 /// value: &[u8] is expected to contain the command byte(s).
 #[inline(always)]
-fn handle_command(value: &[u8]) {
+fn handle_command(value: &[u8], enigo: &mut Enigo) {
     let command = value.first().unwrap_or(&0x00);
     let command = match command {
-        0x01 => Command::Up,
-        0x02 => Command::Down,
-        _ => Command::Unknown,
+        0x01 => Key::RightArrow,
+        0x02 => Key::LeftArrow,
+        _ =>  {
+            error!("Unknown command received: {:x?}", value);
+            return;
+        }
     };
-    let keycode = command.to_keycode();
-    if keycode != -1 {
-        trace!("Executing command: {command:?}");
-        std::process::Command::new("ydotool")
-            .arg("key")
-            .arg(format!("{keycode}:1"))
-            .arg(format!("{keycode}:0"))
-            .output()
-            .expect("Failed to execute command");
-    }
+    enigo.key(command, enigo::Direction::Press).expect("");
+    enigo.key(command, enigo::Direction::Release).expect("");
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> bluer::Result<()> {
     env_logger::init();
 
-    require_ydotool();
+    let mut enigo = Enigo::new(&Settings::default()).unwrap();
 
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
@@ -113,8 +69,8 @@ async fn main() -> bluer::Result<()> {
         service_uuids: vec![SERVICE_UUID].into_iter().collect(),
         discoverable: Some(true),
         local_name: Some(NAME.to_string()),
-        min_interval: Some(Duration::from_millis(10)),
-        max_interval: Some(Duration::from_secs(1)),
+        min_interval: Some(Duration::from_millis(100)),
+        max_interval: Some(Duration::from_millis(1000)),
         ..Default::default()
     };
 
@@ -190,9 +146,7 @@ async fn main() -> bluer::Result<()> {
                     Ok(n) => {
                         let value = read_buf[0..n].to_vec();
                         trace!("Write request with {} bytes: {:x?}", n, &value);
-                        
-                        handle_command(&value);
-                        
+                        handle_command(&value, &mut enigo);
                     }
                     Err(err) => {
                         error!("Error reading from stream: {err}");
