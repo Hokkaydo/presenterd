@@ -43,13 +43,13 @@ const SERVICE_UUID: uuid::Uuid = uuid::Uuid::from_u128(0x12345678123456781234567
 const CHARACTERISTIC_UUID: uuid::Uuid = uuid::Uuid::from_u128(0x1234567812345678123456789abcdef0);
 
 /// Name of the GATT service.
-const NAME : &str = "Presenter";
+const NAME : &str = "Presenter Remote";
 
 /// Ensure that ydotool is installed and available in the system path.
 #[cfg(target_os = "linux")]
 #[inline(always)]
 fn require_ydotool() {
-    if std::process::Command::new("which")
+    if !std::process::Command::new("which")
         .arg("ydotool")
         .output()
         .map(|output| output.status.success())
@@ -113,6 +113,8 @@ async fn main() -> bluer::Result<()> {
         service_uuids: vec![SERVICE_UUID].into_iter().collect(),
         discoverable: Some(true),
         local_name: Some(NAME.to_string()),
+        min_interval: Some(Duration::from_millis(10)),
+        max_interval: Some(Duration::from_secs(1)),
         ..Default::default()
     };
 
